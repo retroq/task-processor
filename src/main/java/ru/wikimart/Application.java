@@ -20,7 +20,7 @@ import org.springframework.context.annotation.Bean;
 @SpringBootApplication
 public class Application implements CommandLineRunner {
 
-    final static String queueName = "spring-boot";
+    final static String queueName = "tasks-queue";
 
     @Autowired
     AnnotationConfigApplicationContext context;
@@ -76,7 +76,7 @@ public class Application implements CommandLineRunner {
         int counter = 1;
         while (true) {
             Thread.sleep(1000);
-            final Task task = new Task("asdasd", false);
+            final Task task = new Task("RESOURCE-42", false);
 
             counter++;
             if (counter % 3 == 0){

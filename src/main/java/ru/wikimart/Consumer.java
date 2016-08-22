@@ -17,11 +17,9 @@ import org.springframework.stereotype.Component;
 public class Consumer implements IConsumer, MessageListener {
     @Autowired
     private HazelcastInstance hazelcastInstance;
-    private final String resourceSyncMapName = "task-resources-map";
     Logger log = LoggerFactory.getLogger(Consumer.class);
 
     public void accept(Task task) {
-        final IMap<String, Boolean> map = hazelcastInstance.getMap(resourceSyncMapName);
         final ILock resourceLock = hazelcastInstance.getLock(task.getResourceId());
         final IAtomicLong tasksCounter = hazelcastInstance.getAtomicLong("tasks-counter");
         final ILock exclusiveTaskLock = hazelcastInstance.getLock("exclusive-task-lock");

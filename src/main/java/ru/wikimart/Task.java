@@ -2,9 +2,7 @@ package ru.wikimart;
 
 import java.io.Serializable;
 
-/**
- * Created by 1 on 21.08.2016.
- */
+
 public class Task implements Serializable{
     private String resourceId;
     private boolean isExclusive;
