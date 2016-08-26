@@ -1,9 +1,8 @@
 package ru.wikimart;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.core.IAtomicLong;
 import com.hazelcast.core.ILock;
-import com.hazelcast.core.IMap;
+import com.hazelcast.core.Member;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
@@ -11,6 +10,8 @@ import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.utils.SerializationUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.Set;
 
 
 @Component
@@ -21,9 +22,7 @@ public class Consumer implements IConsumer, MessageListener {
 
     public void accept(Task task) {
         final ILock resourceLock = hazelcastInstance.getLock(task.getResourceId());
-        final IAtomicLong tasksCounter = hazelcastInstance.getAtomicLong("tasks-counter");
         final ILock exclusiveTaskLock = hazelcastInstance.getLock("exclusive-task-lock");
-
         try {
             if (exclusiveTaskLock.isLocked()) {
                 //wait until exclusive task will be finished
@@ -35,16 +34,13 @@ public class Consumer implements IConsumer, MessageListener {
             if (task.isExclusive()){
                 log.info("Exclusive task processing");
                 exclusiveTaskLock.lock();
-            } else {
-                tasksCounter.incrementAndGet();
             }
+            hazelcastInstance.getCluster().getLocalMember().setBooleanAttribute("BUSY", true);
+
             if (task.isExclusive()) {
                 log.info("Wait until all tasks will be finished");
-                while (tasksCounter.get() != 0){
-                    log.info("Current active tasks = {}", tasksCounter.get());
-                    Thread.sleep(3);
-                }
-                log.info("All tasks is finished");
+                waitAllTasksComplete();
+                log.info("All tasks are finished");
             }
             if (resourceLock.isLocked()){
                 log.info(task.getResourceId() + " is locked");
@@ -62,11 +58,29 @@ public class Consumer implements IConsumer, MessageListener {
             if (task.isExclusive()){
                 exclusiveTaskLock.unlock();
                 log.info("All waiting threads are unlocked");
-            } else {
-                tasksCounter.decrementAndGet();
             }
+            hazelcastInstance.getCluster().getLocalMember().setBooleanAttribute("BUSY", false);
             log.info("{} is unlocked", task.getResourceId());
         }
+    }
+
+    private void waitAllTasksComplete() throws InterruptedException {
+        while (isClusterBusy()){
+            Thread.sleep(30);
+        }
+    }
+
+    private boolean isClusterBusy() {
+        final Set<Member> members = hazelcastInstance.getCluster().getMembers();
+        for (Member m : members){
+            if (m != null) {
+                final Boolean busy = m.getBooleanAttribute("BUSY");
+                if (busy != null && busy && !m.localMember()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
